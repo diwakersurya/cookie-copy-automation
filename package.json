@@ -1,0 +1,17 @@
+{
+  "name": "okta-cdp-attach",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Attach to an already-running Chrome via CDP with Playwright, reuse the existing Okta session, interact, and extract a cookie.",
+  "scripts": {
+    "prepare": "node -e \"console.log('No browsers to install for CDP attach')\"",
+    "grab": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "clipboardy": "^4.0.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.47.2"
+  }
+}
