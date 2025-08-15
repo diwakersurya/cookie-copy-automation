@@ -1,5 +1,5 @@
 
-# okta-cdp-attach
+# cookie copy automation
 
 Attach to an **already running Chrome** (started with `--remote-debugging-port`) using **Playwright's `connectOverCDP`**, without launching a new browser or new profile. This **reuses the existing Okta session** so you don't need to log in again.
 
