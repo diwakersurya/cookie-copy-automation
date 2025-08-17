@@ -110,6 +110,8 @@ async function doInteractions(page, config) {
   await selectAgency(page, config);
   await clickLoginAnchor(page, config);
   // submit/proceed with login
+  await page.waitForSelector(config.submitButton, { state: 'visible', timeout: config.timeouts.idle });
+  
   await finalLogin(page, config);
 }
 

@@ -16,17 +16,17 @@ const CHROME_PATHS = {
   darwin: {
     canary: '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
     stable: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    userDataDir: process.env.HOME ? path.join(process.env.HOME, 'Library/Application Support/Google/Chrome Canary/Default') : undefined
+    userDataDir: process.env.HOME ? path.join(process.env.HOME, 'Library/Application Support/Google/Chrome Canary/User Data') : undefined
   },
   linux: {
     canary: 'google-chrome-canary',
     stable: 'google-chrome',
-    userDataDir: process.env.HOME ? path.join(process.env.HOME, '.config/google-chrome-canary/Default') : undefined
+    userDataDir: process.env.HOME ? path.join(process.env.HOME, '.config/google-chrome-canary') : undefined
   },
   win32: {
     canary: 'C:\\Program Files\\Google\\Chrome SxS\\Application\\chrome.exe',
     stable: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    userDataDir: process.env.APPDATA ? path.join(process.env.APPDATA, 'Google/Chrome SxS/User Data/Default') : undefined
+    userDataDir: process.env.APPDATA ? path.join(process.env.APPDATA, 'Google/Chrome SxS/User Data') : undefined
   }
 };
 
@@ -94,9 +94,28 @@ export class ChromeManager {
     }
 
     const args = [
+      // Enable Chrome DevTools Protocol (CDP) on the specified port for remote debugging
       `--remote-debugging-port=${this.port}`,
+      // Skip Chrome's first-run setup wizard and initial setup prompts
       '--no-first-run',
+      // Prevent Chrome from prompting to set itself as the default browser
       '--no-default-browser-check',
+      // Preserve login state and session data
+      '--restore-last-session',
+      // Don't clear session data on startup
+      '--disable-session-crashed-bubble',
+      // Keep cookies and site data
+      '--disable-clear-browsing-data',
+      // Don't show the "Chrome is being controlled by automated software" banner
+      '--disable-blink-features=AutomationControlled',
+      // Allow existing profile to be used
+      '--no-sandbox',
+      // Enable CDP properly
+      '--remote-debugging-address=0.0.0.0',
+      // Disable GPU to avoid rendering issues with CDP
+      '--disable-gpu',
+      // Disable background mode to ensure CDP works
+      '--disable-background-mode',
     ];
 
     // Add user data directory - this is required for CDP to work
@@ -110,10 +129,13 @@ export class ChromeManager {
         log(`Using temporary user data directory: ${this.tempUserDataDir}`);
       }
     } else {
-      // Use default Chrome Canary user data directory if not specified
+      // Use the default Chrome Canary user data directory to ensure CDP works
       const defaultUserDataDir = CHROME_PATHS[this.platform]?.userDataDir;
       if (defaultUserDataDir) {
         args.push(`--user-data-dir="${defaultUserDataDir}"`);
+        if (this.verbose) {
+          log(`Using Chrome Canary user data directory: ${defaultUserDataDir}`);
+        }
       } else {
         // Fallback to a temporary directory in system temp folder
         this.tempUserDataDir = path.join(os.tmpdir(), 'cookie-copy-chrome-debug');
@@ -126,6 +148,7 @@ export class ChromeManager {
 
     if (this.verbose) {
       log(`Chrome command: ${chrome.path} ${args.join(' ')}`);
+      log(`User data directory: ${this.userDataDir || 'default (not specified)'}`);
     }
 
     try {
