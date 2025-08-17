@@ -1,17 +1,46 @@
 {
-  "name": "cookie-copy-automatio",
+  "name": "cookie-copy",
   "version": "1.0.0",
-  "private": true,
+  "description": "CLI tool to extract cookies from an already running Chrome instance using CDP",
+  "main": "src/index.js",
+  "bin": {
+    "cookie-copy": "src/cli.js"
+  },
   "type": "module",
-  "description": "Attach to an already-running Chrome via CDP with Playwright, reuse the existing Okta session, interact, and extract a cookie.",
+  "keywords": [
+    "cli",
+    "cookie",
+    "chrome",
+    "cdp",
+    "playwright",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
   "scripts": {
     "prepare": "node -e \"console.log('No browsers to install for CDP attach')\"",
-    "grab": "node src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/cli.js",
+    "grab": "node src/cli.js grab",
+    "config": "node src/cli.js config",
+    "test": "node test-cli.js",
+    "test:cli": "node test-cli.js"
   },
   "dependencies": {
     "clipboardy": "^4.0.0",
     "dotenv": "^16.4.5",
-    "playwright": "^1.47.2"
-  }
+    "playwright": "^1.47.2",
+    "commander": "^12.0.0",
+    "chalk": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cookie-copy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/cookie-copy/issues"
+  },
+  "homepage": "https://github.com/yourusername/cookie-copy#readme"
 }

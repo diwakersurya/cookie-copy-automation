@@ -1,46 +1,85 @@
 import 'dotenv/config';
 import { chromium } from 'playwright';
-import clipboard from 'clipboardy'; // <-- Add this import
+import clipboard from 'clipboardy';
+import chalk from 'chalk';
 
-const CFG = {
-  endpointURL: process.env.CDP_URL || 'http://localhost:9222',
-  startUrl: process.env.START_URL || 'https://admin.example.com/login',
-  expectUrlIncludes: process.env.EXPECT_URL_INCLUDES || '/dashboard',
-  cookieName: process.env.COOKIE_NAME || 'sosense',
-
-  // How to choose an existing tab to drive (optional heuristics)
-  pickTabUrlIncludes: process.env.PICK_TAB_URL_INCLUDES || '',
-  pickTabTitleIncludes: process.env.PICK_TAB_TITLE_INCLUDES || '',
-
-  // Interactions
-  agency: process.env.AGENCY || 'multientity',
-  project: process.env.PROJECT,
-  customSelectOpen: process.env.CUSTOM_SELECT_OPEN_SELECTOR,
-  customSelectOption: process.env.CUSTOM_SELECT_OPTION_SELECTOR,
-  loginUlSelector: process.env.LOGIN_UL_SELECTOR ,
-  loginAnchorSelector: process.env.LOGIN_ANCHOR_SELECTOR || '#side-menu > li.active > ul > li:nth-child(3) > a',
-  submitButton: process.env.SUBMIT_BUTTON_SELECTOR || 'button[type="submit"], button[data-testid="continue"], [data-action="login"]',
-
+// Default configuration
+const DEFAULT_CONFIG = {
+  endpointURL: 'http://localhost:9222',
+  startUrl: 'https://admin.example.com/login',
+  expectUrlIncludes: '/dashboard',
+  cookieName: 'sosense',
+  pickTabUrlIncludes: '',
+  pickTabTitleIncludes: '',
+  agency: 'multientity',
+  project: undefined,
+  customSelectOpen: undefined,
+  customSelectOption: undefined,
+  loginUlSelector: undefined,
+  loginAnchorSelector: '#side-menu > li.active > ul > li:nth-child(3) > a',
+  submitButton: 'button[type="submit"], button[data-testid="continue"], [data-action="login"]',
   timeouts: {
     nav: 120_000,
     idle: 15_000,
   },
+  verbose: false,
+  quiet: false,
+  copyToClipboard: true
 };
 
-function log(...args) {
-  console.error('[info]', ...args);
+// Merge environment variables with defaults
+function getConfigFromEnv() {
+  return {
+    endpointURL: process.env.CDP_URL || DEFAULT_CONFIG.endpointURL,
+    startUrl: process.env.START_URL || DEFAULT_CONFIG.startUrl,
+    expectUrlIncludes: process.env.EXPECT_URL_INCLUDES || DEFAULT_CONFIG.expectUrlIncludes,
+    cookieName: process.env.COOKIE_NAME || DEFAULT_CONFIG.cookieName,
+    pickTabUrlIncludes: process.env.PICK_TAB_URL_INCLUDES || DEFAULT_CONFIG.pickTabUrlIncludes,
+    pickTabTitleIncludes: process.env.PICK_TAB_TITLE_INCLUDES || DEFAULT_CONFIG.pickTabTitleIncludes,
+    agency: process.env.AGENCY || DEFAULT_CONFIG.agency,
+    project: process.env.PROJECT || DEFAULT_CONFIG.project,
+    customSelectOpen: process.env.CUSTOM_SELECT_OPEN_SELECTOR || DEFAULT_CONFIG.customSelectOpen,
+    customSelectOption: process.env.CUSTOM_SELECT_OPTION_SELECTOR || DEFAULT_CONFIG.customSelectOption,
+    loginUlSelector: process.env.LOGIN_UL_SELECTOR || DEFAULT_CONFIG.loginUlSelector,
+    loginAnchorSelector: process.env.LOGIN_ANCHOR_SELECTOR || DEFAULT_CONFIG.loginAnchorSelector,
+    submitButton: process.env.SUBMIT_BUTTON_SELECTOR || DEFAULT_CONFIG.submitButton,
+    timeouts: {
+      nav: parseInt(process.env.NAV_TIMEOUT) || DEFAULT_CONFIG.timeouts.nav,
+      idle: parseInt(process.env.IDLE_TIMEOUT) || DEFAULT_CONFIG.timeouts.idle,
+    },
+    verbose: process.env.VERBOSE === 'true' || DEFAULT_CONFIG.verbose,
+    quiet: process.env.QUIET === 'true' || DEFAULT_CONFIG.quiet,
+    copyToClipboard: process.env.COPY_TO_CLIPBOARD !== 'false' && DEFAULT_CONFIG.copyToClipboard
+  };
 }
 
+function log(...args) {
+  if (!global.CFG?.quiet) {
+    console.error(chalk.blue('[info]'), ...args);
+  }
+}
 
+function logVerbose(...args) {
+  if (global.CFG?.verbose) {
+    console.error(chalk.gray('[debug]'), ...args);
+  }
+}
 
-async function ensurePage(browser) {
+function logError(...args) {
+  console.error(chalk.red('[error]'), ...args);
+}
 
+function logSuccess(...args) {
+  console.log(chalk.green('[success]'), ...args);
+}
+
+async function ensurePage(browser, config) {
   const ctx = browser.contexts()[0];
   if (!ctx) throw new Error('No default browser context found. Is Chrome running with remote debugging?');
 
   let page = await ctx.newPage();
-  log('Opened a new tab in the existing Chrome session ->', CFG.startUrl);
-  await page.goto(CFG.startUrl, { waitUntil: 'domcontentloaded', timeout: CFG.timeouts.nav });
+  log('Opened a new tab in the existing Chrome session ->', config.startUrl);
+  await page.goto(config.startUrl, { waitUntil: 'domcontentloaded', timeout: config.timeouts.nav });
   return page;
 }
 
@@ -72,69 +111,77 @@ async function safeClick(page, selector) {
   log('clicked', selector);
 }
 
-async function doInteractions(page) {
-
-  await selectAgency(page, CFG);
-  await clickLoginAnchor(page, CFG);
+async function doInteractions(page, config) {
+  await selectAgency(page, config);
+  await clickLoginAnchor(page, config);
   // submit/proceed with login
-  await finalLogin(page, CFG);
- 
+  await finalLogin(page, config);
 }
 
-async function waitUntilLanded(page) {
-  await page.waitForLoadState('networkidle', { timeout: CFG.timeouts.nav }).catch(() => {});
+async function waitUntilLanded(page, config) {
+  await page.waitForLoadState('networkidle', { timeout: config.timeouts.nav }).catch(() => {});
   const url = page.url();
-  if (CFG.expectUrlIncludes && !url.includes(CFG.expectUrlIncludes)) {
-    log(`Warning: current URL (${url}) does not include "${CFG.expectUrlIncludes}". Continuing…`);
+  if (config.expectUrlIncludes && !url.includes(config.expectUrlIncludes)) {
+    log(`Warning: current URL (${url}) does not include "${config.expectUrlIncludes}". Continuing…`);
   } else {
     log('Landed on:', url);
   }
 }
 
-async function selectAgency(page, CFG) {
-  return await safeMultiSelect(page, CFG.customSelectOpen, [CFG.customSelectOption]);
+async function selectAgency(page, config) {
+  return await safeMultiSelect(page, config.customSelectOpen, [config.customSelectOption]);
 }
-async function clickLoginAnchor(page, CFG) {
-  await safeClick(page, CFG.loginUlSelector);
+
+async function clickLoginAnchor(page, config) {
+  await safeClick(page, config.loginUlSelector);
   // Wait for the login anchor to be visible before clicking
-  await page.waitForSelector(CFG.loginAnchorSelector, { state: 'visible', timeout: CFG.timeouts.idle });
+  await page.waitForSelector(config.loginAnchorSelector, { state: 'visible', timeout: config.timeouts.idle });
   // Click the login anchor
-  log('Clicking login anchor:', CFG.loginAnchorSelector);
-  if (!CFG.loginAnchorSelector) {
+  log('Clicking login anchor:', config.loginAnchorSelector);
+  if (!config.loginAnchorSelector) {
     log('No login anchor selector provided, skipping click.');
     return;
   }
-  return await safeClick(page, CFG.loginAnchorSelector);
+  return await safeClick(page, config.loginAnchorSelector);
 }
-async function finalLogin(page, CFG) {
+
+async function finalLogin(page, config) {
   // This is a placeholder for any final login steps if needed
   // For example, you might want to click a "Login" button here
-  await safeClick(page, CFG.submitButton);
+  await safeClick(page, config.submitButton);
 }
 
+export async function grabCookie(customConfig = {}) {
+  // Merge environment config with custom config
+  const envConfig = getConfigFromEnv();
+  const config = { ...DEFAULT_CONFIG, ...envConfig, ...customConfig };
+  
+  // Set global config for logging functions
+  global.CFG = config;
+  
+  logVerbose('Configuration:', JSON.stringify(config, null, 2));
 
-async function main() {
   // Attach to the running Chrome instance
-  const browser = await chromium.connectOverCDP({ endpointURL: CFG.endpointURL });
+  const browser = await chromium.connectOverCDP({ endpointURL: config.endpointURL });
   try {
-    const page = await ensurePage(browser);
+    const page = await ensurePage(browser, config);
 
     // Run interactions in the *existing* session (cookies preserved)
-    await doInteractions(page);
+    await doInteractions(page, config);
 
     // Wait until the target page is loaded
-    await waitUntilLanded(page);
+    await waitUntilLanded(page, config);
 
     // Extract the cookie from the shared browser context
     const ctx = page.context();
     const cookies = await ctx.cookies();
-    const match = cookies.find(c => c.name === CFG.cookieName);
+    const match = cookies.find(c => c.name === config.cookieName);
     if (!match) {
       const names = [...new Set(cookies.map(c => c.name))];
-      console.log(`Cookie "${CFG.cookieName}" not found. Known cookies (first 50): ${names.slice(0,50).join(', ')}`);
+      console.log(`Cookie "${config.cookieName}" not found. Known cookies (first 50): ${names.slice(0,50).join(', ')}`);
       process.exitCode = 2;
     } else {
-      console.log(JSON.stringify({
+      const cookieData = {
         name: match.name,
         value: match.value,
         domain: match.domain,
@@ -143,9 +190,14 @@ async function main() {
         httpOnly: match.httpOnly,
         secure: match.secure,
         sameSite: match.sameSite
-      }, null, 2));
-      await clipboard.write(match.value); // <-- Copy cookie value to clipboard
-      console.log(`[info] Cookie value copied to clipboard.`);
+      };
+      
+      console.log(JSON.stringify(cookieData, null, 2));
+      
+      if (config.copyToClipboard) {
+        await clipboard.write(match.value);
+        logSuccess('Cookie value copied to clipboard.');
+      }
     }
   } finally {
     // Don't close the real Chrome — just disconnect
@@ -153,7 +205,21 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('[error]', err?.message || err);
-  process.exit(1);
-});
+export function showConfig() {
+  const config = getConfigFromEnv();
+  console.log(chalk.cyan('Current Configuration:'));
+  console.log(JSON.stringify(config, null, 2));
+}
+
+// Legacy main function for backward compatibility
+async function main() {
+  await grabCookie();
+}
+
+// Only run main if this file is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(err => {
+    logError(err?.message || err);
+    process.exit(1);
+  });
+}
