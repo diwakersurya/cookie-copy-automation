@@ -44,6 +44,32 @@ program
   .option('--chrome-port <port>', 'Chrome debugging port', '9222')
   .option('--chrome-user-data-dir <path>', 'Chrome user data directory')
   .action(async (options) => {
+    let chromeManager = null;
+    
+    // Setup cleanup handlers
+    const cleanup = async () => {
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
+      process.exit(0);
+    };
+
+    // Handle process termination signals
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('SIGQUIT', cleanup);
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', async (error) => {
+      console.error(chalk.red('[fatal error]'), error.message);
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
+      process.exit(1);
+    });
+
     try {
       let cdpUrl = options.cdpUrl;
       
@@ -57,7 +83,9 @@ program
           verbose: options.verbose
         };
         
-        cdpUrl = await startChrome(chromeOptions);
+        const result = await startChrome(chromeOptions);
+        chromeManager = result.manager;
+        cdpUrl = result.cdpUrl;
       }
 
       const config = {
@@ -84,8 +112,19 @@ program
       };
 
       await grabCookie(config);
+      
+      // Clean up Chrome if we started it
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
     } catch (error) {
       console.error(chalk.red('[error]'), error.message);
+      // Clean up Chrome if we started it, even on error
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
       process.exit(1);
     }
   });
@@ -97,6 +136,32 @@ program
   .option('--user-data-dir <path>', 'Chrome user data directory')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
+    let chromeManager = null;
+    
+    // Setup cleanup handlers
+    const cleanup = async () => {
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
+      process.exit(0);
+    };
+
+    // Handle process termination signals
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('SIGQUIT', cleanup);
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', async (error) => {
+      console.error(chalk.red('[fatal error]'), error.message);
+      if (chromeManager) {
+        console.log(chalk.yellow('[info] Cleaning up Chrome instance...'));
+        await chromeManager.stopChrome();
+      }
+      process.exit(1);
+    });
+
     try {
       const chromeOptions = {
         port: parseInt(options.port),
@@ -104,10 +169,17 @@ program
         verbose: options.verbose
       };
 
-      const cdpUrl = await startChrome(chromeOptions);
+      const result = await startChrome(chromeOptions);
+      chromeManager = result.manager;
+      const cdpUrl = result.cdpUrl;
+      
       console.log(chalk.green('✓ Chrome started successfully!'));
       console.log(chalk.blue('CDP URL:'), cdpUrl);
       console.log(chalk.gray('You can now use: cookie-copy grab'));
+      console.log(chalk.yellow('Press Ctrl+C to stop Chrome'));
+      
+      // Keep the process running to maintain Chrome
+      process.stdin.resume();
     } catch (error) {
       console.error(chalk.red('[error]'), error.message);
       process.exit(1);

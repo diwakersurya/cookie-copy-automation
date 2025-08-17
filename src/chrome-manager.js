@@ -114,14 +114,17 @@ export class ChromeManager {
 
     try {
       this.chromeProcess = spawn(chrome.path, args, {
-        detached: true,
+        detached: false, // Changed to false so we can properly manage the process
         stdio: 'ignore'
       });
+
+      // Store the process ID for better cleanup
+      this.chromePid = this.chromeProcess.pid;
 
       // Wait a bit for Chrome to start
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      logSuccess(`${chrome.name} started successfully on port ${this.port}`);
+      logSuccess(`${chrome.name} started successfully on port ${this.port} (PID: ${this.chromePid})`);
       return true;
     } catch (error) {
       logError('Failed to start Chrome:', error.message);
@@ -130,18 +133,71 @@ export class ChromeManager {
   }
 
   async stopChrome() {
-    if (this.chromeProcess) {
+    if (this.chromeProcess || this.chromePid) {
       try {
-        this.chromeProcess.kill();
+        // Try to kill the process gracefully first
+        if (this.chromeProcess) {
+          this.chromeProcess.kill('SIGTERM');
+        } else if (this.chromePid) {
+          process.kill(this.chromePid, 'SIGTERM');
+        }
+
+        // Wait a bit for graceful shutdown
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Force kill if still running
+        if (this.chromeProcess && !this.chromeProcess.killed) {
+          this.chromeProcess.kill('SIGKILL');
+        } else if (this.chromePid) {
+          try {
+            process.kill(this.chromePid, 'SIGKILL');
+          } catch (e) {
+            // Process might already be dead
+          }
+        }
+
+        // Also try to kill any remaining Chrome processes on the same port
+        if (this.platform === 'win32') {
+          try {
+            await execAsync(`taskkill /F /IM chrome.exe /FI "WINDOWTITLE eq *:${this.port}*" 2>nul`);
+          } catch (e) {
+            // Ignore errors
+          }
+        } else {
+          try {
+            await execAsync(`pkill -f "chrome.*--remote-debugging-port=${this.port}"`);
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
         log('Chrome process stopped');
       } catch (error) {
         logError('Failed to stop Chrome process:', error.message);
+      } finally {
+        this.chromeProcess = null;
+        this.chromePid = null;
       }
     }
   }
 
   getCDPUrl() {
     return `http://localhost:${this.port}`;
+  }
+
+  isChromeRunning() {
+    if (this.chromeProcess) {
+      return !this.chromeProcess.killed;
+    }
+    if (this.chromePid) {
+      try {
+        process.kill(this.chromePid, 0); // Signal 0 just checks if process exists
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
   }
 
   async ensureChromeRunning() {
@@ -153,7 +209,8 @@ export class ChromeManager {
 
 export async function startChrome(options = {}) {
   const manager = new ChromeManager(options);
-  return await manager.ensureChromeRunning();
+  const cdpUrl = await manager.ensureChromeRunning();
+  return { manager, cdpUrl };
 }
 
 
