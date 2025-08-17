@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,9 +46,11 @@ export class ChromeManager {
   constructor(options = {}) {
     this.port = options.port || 9222;
     this.userDataDir = options.userDataDir;
+    this.useTempUserData = options.useTempUserData || false;
     this.platform = process.platform;
     this.chromeProcess = null;
     this.verbose = options.verbose || false;
+    this.tempUserDataDir = null;
   }
 
 
@@ -99,15 +102,25 @@ export class ChromeManager {
     // Add user data directory - this is required for CDP to work
     if (this.userDataDir) {
       args.push(`--user-data-dir="${this.userDataDir}"`);
+    } else if (this.useTempUserData) {
+      // Use temporary directory when explicitly requested
+      this.tempUserDataDir = path.join(os.tmpdir(), 'cookie-copy-chrome-debug');
+      args.push(`--user-data-dir="${this.tempUserDataDir}"`);
+      if (this.verbose) {
+        log(`Using temporary user data directory: ${this.tempUserDataDir}`);
+      }
     } else {
       // Use default Chrome Canary user data directory if not specified
       const defaultUserDataDir = CHROME_PATHS[this.platform]?.userDataDir;
       if (defaultUserDataDir) {
         args.push(`--user-data-dir="${defaultUserDataDir}"`);
       } else {
-        // Fallback to a temporary directory
-        const tempDir = path.join(process.cwd(), '.chrome-debug');
-        args.push(`--user-data-dir="${tempDir}"`);
+        // Fallback to a temporary directory in system temp folder
+        this.tempUserDataDir = path.join(os.tmpdir(), 'cookie-copy-chrome-debug');
+        args.push(`--user-data-dir="${this.tempUserDataDir}"`);
+        if (this.verbose) {
+          log(`Using temporary user data directory: ${this.tempUserDataDir}`);
+        }
       }
     }
 
@@ -229,6 +242,22 @@ export class ChromeManager {
       } finally {
         this.chromeProcess = null;
         this.chromePid = null;
+      }
+    }
+  }
+
+  async cleanupTempUserDataDir() {
+    if (this.tempUserDataDir && fs.existsSync(this.tempUserDataDir)) {
+      try {
+        // Use rm -rf equivalent for cross-platform compatibility
+        if (this.platform === 'win32') {
+          await execAsync(`rmdir /s /q "${this.tempUserDataDir}"`);
+        } else {
+          await execAsync(`rm -rf "${this.tempUserDataDir}"`);
+        }
+        log(`Cleaned up temporary user data directory: ${this.tempUserDataDir}`);
+      } catch (error) {
+        logError(`Failed to clean up temporary user data directory: ${error.message}`);
       }
     }
   }

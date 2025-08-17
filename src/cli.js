@@ -43,6 +43,7 @@ program
   .option('--no-auto-start', 'Don\'t automatically start Chrome if not running')
   .option('--chrome-port <port>', 'Chrome debugging port', '9222')
   .option('--chrome-user-data-dir <path>', 'Chrome user data directory')
+  .option('--use-temp-user-data', 'Use temporary user data directory instead of default Chrome directory')
   .action(async (options) => {
     let chromeManager = null;
     
@@ -80,6 +81,7 @@ program
         const chromeOptions = {
           port: parseInt(options.chromePort),
           userDataDir: options.chromeUserDataDir,
+          useTempUserData: options.useTempUserData,
           verbose: options.verbose
         };
         
@@ -134,6 +136,7 @@ program
   .description('Start Chrome Canary with CDP enabled')
   .option('-p, --port <port>', 'Chrome debugging port', '9222')
   .option('--user-data-dir <path>', 'Chrome user data directory')
+  .option('--use-temp-user-data', 'Use temporary user data directory instead of default Chrome directory')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
     let chromeManager = null;
@@ -166,6 +169,7 @@ program
       const chromeOptions = {
         port: parseInt(options.port),
         userDataDir: options.userDataDir,
+        useTempUserData: options.useTempUserData,
         verbose: options.verbose
       };
 

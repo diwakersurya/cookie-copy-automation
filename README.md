@@ -139,12 +139,43 @@ cookie-copy --version
 - `--auto-start-chrome` - Automatically start Chrome if not running
 - `--chrome-port <port>` - Chrome debugging port (default: 9222)
 - `--chrome-user-data-dir <path>` - Chrome user data directory
+- `--use-temp-user-data` - Use temporary user data directory instead of default Chrome directory
 
 ### Start-Chrome Command Options
 - `-p, --port <port>` - Chrome debugging port (default: 9222)
 - `--user-data-dir <path>` - Chrome user data directory
+- `--use-temp-user-data` - Use temporary user data directory instead of default Chrome directory
 - `-v, --verbose` - Enable verbose logging
 - `--check-only` - Only check if Chrome is running, don't start it
+
+## User Data Directory Behavior
+
+The tool manages Chrome user data directories intelligently:
+
+### Default Behavior
+- **Primary**: Uses the default Chrome Canary user data directory (preserves your existing Chrome profile)
+- **Fallback**: If Chrome Canary is not installed or the default directory is not accessible, uses a temporary directory in the system temp folder
+
+### Temporary Directory
+- **Location**: System temp folder (e.g., `/tmp/cookie-copy-chrome-debug` on Unix, `%TEMP%\cookie-copy-chrome-debug` on Windows)
+- **Persistence**: Temporary directories are preserved between runs for better performance
+- **Cleanup**: Can be manually cleaned up using the `cleanupTempUserDataDir()` method if needed
+
+### Custom Options
+- **`--chrome-user-data-dir <path>`**: Use a specific user data directory
+- **`--use-temp-user-data`**: Force the use of a temporary directory instead of the default Chrome directory
+
+### Examples
+```bash
+# Use default Chrome Canary profile (recommended)
+cookie-copy grab
+
+# Force temporary directory
+cookie-copy grab --use-temp-user-data
+
+# Use custom profile
+cookie-copy grab --chrome-user-data-dir "/path/to/custom/profile"
+```
 
 ## Environment Variables
 
