@@ -16,12 +16,12 @@ const program = new Command();
 
 program
   .name('cookie-copy')
-  .description('CLI tool to extract cookies from an already running Chrome instance using CDP')
+  .description('CLI tool to extract cookies from Chrome Canary using CDP (auto-starts if needed)')
   .version(packageJson.version);
 
 program
   .command('grab')
-  .description('Extract cookie from running Chrome instance')
+  .description('Extract cookie from Chrome Canary (auto-starts if not running)')
   .option('-u, --cdp-url <url>', 'Chrome DevTools Protocol URL', 'http://localhost:9222')
   .option('-s, --start-url <url>', 'Starting URL to navigate to', 'https://admin.example.com/login')
   .option('-c, --cookie-name <name>', 'Name of cookie to extract', 'sosense')
@@ -40,7 +40,7 @@ program
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-q, --quiet', 'Suppress info messages')
   .option('--no-clipboard', 'Don\'t copy cookie value to clipboard')
-  .option('--auto-start-chrome', 'Automatically start Chrome if not running')
+  .option('--no-auto-start', 'Don\'t automatically start Chrome if not running')
   .option('--chrome-port <port>', 'Chrome debugging port', '9222')
   .option('--chrome-user-data-dir <path>', 'Chrome user data directory')
   .action(async (options) => {
@@ -73,9 +73,9 @@ program
     try {
       let cdpUrl = options.cdpUrl;
       
-      // Auto-start Chrome if requested
-      if (options.autoStartChrome) {
-        console.log(chalk.yellow('[info] Starting Chrome automatically...'));
+      // Auto-start Chrome unless explicitly disabled
+      if (!options.noAutoStart) {
+        console.log(chalk.yellow('[info] Checking for Chrome CDP instance...'));
         
         const chromeOptions = {
           port: parseInt(options.chromePort),
@@ -131,7 +131,7 @@ program
 
 program
   .command('start-chrome')
-  .description('Start Chrome with CDP enabled')
+  .description('Start Chrome Canary with CDP enabled')
   .option('-p, --port <port>', 'Chrome debugging port', '9222')
   .option('--user-data-dir <path>', 'Chrome user data directory')
   .option('-v, --verbose', 'Enable verbose logging')
@@ -173,10 +173,10 @@ program
       chromeManager = result.manager;
       const cdpUrl = result.cdpUrl;
       
-      console.log(chalk.green('✓ Chrome started successfully!'));
+      console.log(chalk.green('✓ Chrome Canary started successfully!'));
       console.log(chalk.blue('CDP URL:'), cdpUrl);
       console.log(chalk.gray('You can now use: cookie-copy grab'));
-      console.log(chalk.yellow('Press Ctrl+C to stop Chrome'));
+      console.log(chalk.yellow('Press Ctrl+C to stop Chrome Canary'));
       
       // Keep the process running to maintain Chrome
       process.stdin.resume();

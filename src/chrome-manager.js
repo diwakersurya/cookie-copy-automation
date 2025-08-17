@@ -58,78 +58,128 @@ export class ChromeManager {
       throw new Error(`Unsupported platform: ${this.platform}`);
     }
 
-    // Try Chrome Canary first, then stable Chrome
-    const variants = [
-      { name: 'Chrome Canary', path: paths.canary },
-      { name: 'Chrome Stable', path: paths.stable }
-    ];
+    // Only try Chrome Canary as per requirements
+    const variant = { name: 'Chrome Canary', path: paths.canary };
 
-    for (const variant of variants) {
-      try {
-        if (this.platform === 'win32') {
-          // On Windows, check if file exists
-          if (fs.existsSync(variant.path)) {
-            return variant;
-          }
-        } else {
-          // On Unix-like systems, check if executable exists
-          await execAsync(`which "${variant.path}"`);
+    try {
+      if (this.platform === 'win32') {
+        // On Windows, check if file exists
+        if (fs.existsSync(variant.path)) {
           return variant;
         }
-      } catch (error) {
-        if (this.verbose) {
-          log(`${variant.name} not found at: ${variant.path}`);
-        }
+      } else {
+        // On Unix-like systems, check if executable exists
+        await execAsync(`which "${variant.path}"`);
+        return variant;
+      }
+    } catch (error) {
+      if (this.verbose) {
+        log(`${variant.name} not found at: ${variant.path}`);
       }
     }
 
-    throw new Error('No Chrome executable found. Please install Google Chrome or Chrome Canary.');
+    throw new Error('Chrome Canary not found. Please install Google Chrome Canary.');
   }
 
   async startChrome() {
     const chrome = await this.findChromeExecutable();
     log(`Starting ${chrome.name}...`);
 
-    const args = [
-      `--remote-debugging-port=${this.port}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-default-apps',
-      '--disable-popup-blocking',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-features=TranslateUI',
-      '--disable-ipc-flooding-protection'
-    ];
-
-    // Add user data directory if specified
-    if (this.userDataDir) {
-      args.push(`--user-data-dir="${this.userDataDir}"`);
+    // Check if port is already in use
+    if (await this.isPortInUse()) {
+      throw new Error(`Port ${this.port} is already in use. Please stop any existing Chrome instances or use a different port.`);
     }
 
-    // Add additional arguments for better automation
-    args.push('--disable-web-security');
-    args.push('--disable-features=VizDisplayCompositor');
+    const args = [
+      `--remote-debugging-port=${this.port}`
+    ];
+
+    // Add user data directory - this is required for CDP to work
+    if (this.userDataDir) {
+      args.push(`--user-data-dir="${this.userDataDir}"`);
+    } else {
+      // Use default Chrome Canary user data directory if not specified
+      const defaultUserDataDir = CHROME_PATHS[this.platform]?.userDataDir;
+      if (defaultUserDataDir) {
+        args.push(`--user-data-dir="${defaultUserDataDir}"`);
+      } else {
+        // Fallback to a temporary directory
+        const tempDir = path.join(process.cwd(), '.chrome-debug');
+        args.push(`--user-data-dir="${tempDir}"`);
+      }
+    }
+
+    if (this.verbose) {
+      log(`Chrome command: ${chrome.path} ${args.join(' ')}`);
+    }
 
     try {
       this.chromeProcess = spawn(chrome.path, args, {
-        detached: false, // Changed to false so we can properly manage the process
-        stdio: 'ignore'
+        detached: false,
+        stdio: ['ignore', 'pipe', 'pipe'] // Capture stdout and stderr for debugging
       });
 
       // Store the process ID for better cleanup
       this.chromePid = this.chromeProcess.pid;
 
-      // Wait a bit for Chrome to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Set up error handling for the Chrome process
+      this.chromeProcess.on('error', (error) => {
+        logError('Chrome process error:', error.message);
+      });
+
+      this.chromeProcess.on('exit', (code, signal) => {
+        if (code !== null) {
+          logError(`Chrome process exited with code ${code}`);
+        } else if (signal !== null) {
+          logError(`Chrome process killed with signal ${signal}`);
+        }
+      });
+
+      // Wait for Chrome to start and CDP endpoint to be ready
+      await this.waitForCDPReady();
 
       logSuccess(`${chrome.name} started successfully on port ${this.port} (PID: ${this.chromePid})`);
       return true;
     } catch (error) {
       logError('Failed to start Chrome:', error.message);
+      
+      // Clean up the failed process
+      if (this.chromeProcess) {
+        this.chromeProcess.kill('SIGKILL');
+      }
+      
       throw error;
     }
+  }
+
+  async waitForCDPReady(maxAttempts = 30, delayMs = 1000) {
+    log(`Waiting for Chrome CDP endpoint to be ready on port ${this.port}...`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(`http://localhost:${this.port}/json/version`);
+        if (response.ok) {
+          const data = await response.json();
+          log(`CDP endpoint ready after ${attempt} attempts`);
+          log(`Chrome version: ${data.Browser || 'Unknown'}`);
+          return true;
+        }
+      } catch (error) {
+        if (this.verbose || attempt % 5 === 0) {
+          log(`Attempt ${attempt}/${maxAttempts}: CDP not ready yet (${error.message})`);
+        }
+      }
+      
+      // Check if Chrome process is still running
+      if (this.chromeProcess && this.chromeProcess.killed) {
+        throw new Error('Chrome process died unexpectedly during startup');
+      }
+      
+      // Wait before next attempt
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    
+    throw new Error(`Chrome CDP endpoint failed to become ready after ${maxAttempts} attempts. Please check if Chrome Canary is properly installed and accessible.`);
   }
 
   async stopChrome() {
@@ -185,7 +235,7 @@ export class ChromeManager {
     return `http://localhost:${this.port}`;
   }
 
-  isChromeRunning() {
+  async isChromeRunning() {
     if (this.chromeProcess) {
       return !this.chromeProcess.killed;
     }
@@ -200,10 +250,67 @@ export class ChromeManager {
     return false;
   }
 
+  async isCDPChromeRunning() {
+    try {
+      // Try to connect to the CDP endpoint to see if Chrome is already running
+      const response = await fetch(`http://localhost:${this.port}/json/version`);
+      if (response.ok) {
+        const data = await response.json();
+        log(`Found existing Chrome instance: ${data.Browser || 'Unknown'}`);
+        return true;
+      }
+    } catch (error) {
+      if (this.verbose) {
+        log(`No Chrome CDP instance found on port ${this.port}: ${error.message}`);
+      }
+    }
+    return false;
+  }
+
   async ensureChromeRunning() {
-    log('Starting Chrome...');
-    await this.startChrome();
-    return this.getCDPUrl();
+    // First check if Chrome is already running with CDP
+    if (await this.isCDPChromeRunning()) {
+      logSuccess(`Reusing existing Chrome instance on port ${this.port}`);
+      return this.getCDPUrl();
+    }
+
+    // If no CDP Chrome is running, start Chrome Canary
+    log('No Chrome CDP instance found, starting Chrome Canary...');
+    
+    // Try to start Chrome with the current port
+    try {
+      await this.startChrome();
+      return this.getCDPUrl();
+    } catch (error) {
+      logError(`Failed to start Chrome on port ${this.port}: ${error.message}`);
+      
+      // Try alternative ports if the default port fails
+      const alternativePorts = [9223, 9224, 9225, 9226, 9227];
+      for (const altPort of alternativePorts) {
+        log(`Trying alternative port ${altPort}...`);
+        this.port = altPort;
+        
+        try {
+          await this.startChrome();
+          logSuccess(`Chrome started successfully on alternative port ${altPort}`);
+          return this.getCDPUrl();
+        } catch (altError) {
+          logError(`Failed to start Chrome on port ${altPort}: ${altError.message}`);
+          continue;
+        }
+      }
+      
+      throw new Error(`Failed to start Chrome on any port. Tried ports: 9222, ${alternativePorts.join(', ')}`);
+    }
+  }
+
+  async isPortInUse() {
+    try {
+      const response = await fetch(`http://localhost:${this.port}/json/version`);
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
   }
 }
 
