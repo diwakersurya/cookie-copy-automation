@@ -50,23 +50,7 @@ export class ChromeManager {
     this.verbose = options.verbose || false;
   }
 
-  async checkCDPConnection() {
-    try {
-      const response = await fetch(`http://localhost:${this.port}/json/version`);
-      if (response.ok) {
-        const data = await response.json();
-        if (this.verbose) {
-          log('CDP connection successful:', data.Browser);
-        }
-        return true;
-      }
-    } catch (error) {
-      if (this.verbose) {
-        log('CDP connection failed:', error.message);
-      }
-    }
-    return false;
-  }
+
 
   async findChromeExecutable() {
     const paths = CHROME_PATHS[this.platform];
@@ -103,11 +87,6 @@ export class ChromeManager {
   }
 
   async startChrome() {
-    if (await this.checkCDPConnection()) {
-      logSuccess('Chrome is already running with CDP enabled');
-      return true;
-    }
-
     const chrome = await this.findChromeExecutable();
     log(`Starting ${chrome.name}...`);
 
@@ -142,24 +121,8 @@ export class ChromeManager {
       // Wait a bit for Chrome to start
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Check if CDP is now available
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      while (attempts < maxAttempts) {
-        if (await this.checkCDPConnection()) {
-          logSuccess(`${chrome.name} started successfully on port ${this.port}`);
-          return true;
-        }
-        
-        attempts++;
-        if (this.verbose) {
-          log(`Waiting for Chrome to start... (attempt ${attempts}/${maxAttempts})`);
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      throw new Error('Chrome started but CDP connection failed');
+      logSuccess(`${chrome.name} started successfully on port ${this.port}`);
+      return true;
     } catch (error) {
       logError('Failed to start Chrome:', error.message);
       throw error;
@@ -182,11 +145,7 @@ export class ChromeManager {
   }
 
   async ensureChromeRunning() {
-    if (await this.checkCDPConnection()) {
-      return this.getCDPUrl();
-    }
-
-    log('Chrome not running with CDP. Starting Chrome...');
+    log('Starting Chrome...');
     await this.startChrome();
     return this.getCDPUrl();
   }
@@ -197,7 +156,4 @@ export async function startChrome(options = {}) {
   return await manager.ensureChromeRunning();
 }
 
-export async function checkChromeStatus(port = 9222) {
-  const manager = new ChromeManager({ port });
-  return await manager.checkCDPConnection();
-}
+
