@@ -12,6 +12,8 @@ A command-line tool to extract cookies from an already running Chrome instance u
 - ⚙️ **Flexible Configuration**: Environment variables + CLI options
 - 🎨 **Colored Output**: Beautiful terminal output with chalk
 - 📖 **Comprehensive Help**: Built-in help and documentation
+- 🚀 **Auto Chrome Management**: Automatically starts Chrome if not running
+- 🔧 **Cross-Platform**: Works on macOS, Linux, and Windows
 
 ## Installation
 
@@ -27,42 +29,32 @@ npm install
 npm install -g cookie-copy
 ```
 
-## Prerequisites
+## Quick Start
 
-### 1. Start Chrome with Remote Debugging
-
-**macOS (Chrome Canary)**
+### Option 1: Automatic Chrome Management (Recommended)
 ```bash
-/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/Library/Application Support/Google/Chrome Canary/Default"
+# The tool will automatically start Chrome if needed
+cookie-copy grab --auto-start-chrome
+
+# Or just use the default behavior (auto-starts if CDP not available)
+cookie-copy grab
 ```
 
-**macOS (Regular Chrome)**
+### Option 2: Manual Chrome Setup
 ```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222
-```
+# 1. Start Chrome manually
+cookie-copy start-chrome
 
-**Linux**
-```bash
-google-chrome --remote-debugging-port=9222
+# 2. Extract cookies
+cookie-copy grab
 ```
-
-**Windows (PowerShell)**
-```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-  --remote-debugging-port=9222
-```
-
-> **Important**: Use the same Chrome window you're already logged into. No new profile is created; the tool attaches to your existing session.
 
 ## Usage
 
 ### Basic Usage
 
 ```bash
-# Extract cookie with default settings
+# Extract cookie with automatic Chrome management
 cookie-copy grab
 
 # Extract specific cookie
@@ -70,14 +62,34 @@ cookie-copy grab --cookie-name sessionId
 
 # Use custom CDP URL
 cookie-copy grab --cdp-url http://localhost:9223
+
+# Verbose mode for debugging
+cookie-copy grab --verbose
+```
+
+### Chrome Management Commands
+
+```bash
+# Start Chrome with CDP enabled
+cookie-copy start-chrome
+
+# Start Chrome on custom port
+cookie-copy start-chrome --port 9223
+
+# Check if Chrome is running with CDP
+cookie-copy start-chrome --check-only
+
+# Start Chrome with custom user data directory
+cookie-copy start-chrome --user-data-dir "/path/to/chrome/profile"
 ```
 
 ### Advanced Usage
 
 ```bash
-# Full configuration example
+# Full configuration with auto Chrome management
 cookie-copy grab \
-  --cdp-url http://localhost:9222 \
+  --auto-start-chrome \
+  --chrome-port 9222 \
   --start-url https://admin.example.com/login \
   --cookie-name sosense \
   --expect-url /dashboard \
@@ -124,6 +136,15 @@ cookie-copy --version
 - `-v, --verbose` - Enable verbose logging
 - `-q, --quiet` - Suppress info messages
 - `--no-clipboard` - Don't copy cookie value to clipboard
+- `--auto-start-chrome` - Automatically start Chrome if not running
+- `--chrome-port <port>` - Chrome debugging port (default: 9222)
+- `--chrome-user-data-dir <path>` - Chrome user data directory
+
+### Start-Chrome Command Options
+- `-p, --port <port>` - Chrome debugging port (default: 9222)
+- `--user-data-dir <path>` - Chrome user data directory
+- `-v, --verbose` - Enable verbose logging
+- `--check-only` - Only check if Chrome is running, don't start it
 
 ## Environment Variables
 
@@ -139,6 +160,9 @@ export PROJECT="myproject"
 export VERBOSE="true"
 export QUIET="false"
 export COPY_TO_CLIPBOARD="true"
+export AUTO_START_CHROME="true"
+export CHROME_PORT="9222"
+export CHROME_USER_DATA_DIR="/path/to/chrome/profile"
 ```
 
 ## Output
@@ -178,7 +202,16 @@ cookie-copy grab --quiet --no-clipboard | jq -r '.value'
 
 ### Verbose Debugging
 ```bash
-cookie-copy grab --verbose --cdp-url http://localhost:9222
+cookie-copy grab --verbose --auto-start-chrome
+```
+
+### Custom Chrome Setup
+```bash
+# Start Chrome manually
+cookie-copy start-chrome --port 9223 --user-data-dir "/custom/profile"
+
+# Use the custom Chrome instance
+cookie-copy grab --cdp-url http://localhost:9223
 ```
 
 ### Custom Selectors
@@ -193,21 +226,31 @@ cookie-copy grab \
 
 ### Common Issues
 
-1. **"No default browser context found"**
-   - Ensure Chrome is running with `--remote-debugging-port=9222`
-   - Check that the CDP URL is correct
+1. **"No Chrome executable found"**
+   - Install Google Chrome or Chrome Canary
+   - The tool will automatically detect the installation
 
-2. **"Cookie not found"**
+2. **"Chrome started but CDP connection failed"**
+   - Check if port 9222 is already in use
+   - Try a different port: `--chrome-port 9223`
+   - Ensure no firewall is blocking the connection
+
+3. **"No default browser context found"**
+   - Chrome is running but without CDP enabled
+   - Use `--auto-start-chrome` to start Chrome properly
+   - Or manually start Chrome with `--remote-debugging-port=9222`
+
+4. **"Cookie not found"**
    - Verify the cookie name is correct
    - Ensure you're logged into the target site
    - Check that the cookie is scoped to the domain you navigated to
 
-3. **"Navigation timeout"**
+5. **"Navigation timeout"**
    - Increase the `--nav-timeout` value
    - Check your internet connection
    - Verify the start URL is accessible
 
-4. **"Element not found"**
+6. **"Element not found"**
    - Update selectors to match the current page structure
    - Use `--verbose` to see which selectors are being used
 
@@ -216,14 +259,28 @@ cookie-copy grab \
 Use verbose logging to debug issues:
 
 ```bash
-cookie-copy grab --verbose
+cookie-copy grab --verbose --auto-start-chrome
 ```
 
 This will show:
+- Chrome startup process
 - Configuration being used
 - Navigation steps
 - Element interactions
 - Cookie extraction details
+
+### Chrome Management
+
+```bash
+# Check Chrome status
+cookie-copy start-chrome --check-only
+
+# Start Chrome with verbose logging
+cookie-copy start-chrome --verbose
+
+# Use custom Chrome profile
+cookie-copy start-chrome --user-data-dir "/path/to/profile"
+```
 
 ## Development
 
@@ -261,3 +318,4 @@ MIT License - see LICENSE file for details.
 - It simply reuses the authenticated session from your already-running Chrome
 - Ensure you're using this tool responsibly and in accordance with your organization's security policies
 - Cookie values are sensitive data - handle them securely
+- Chrome is started with security flags disabled for automation purposes

@@ -22,6 +22,7 @@
     "start": "node src/cli.js",
     "grab": "node src/cli.js grab",
     "config": "node src/cli.js config",
+    "start-chrome": "node src/cli.js start-chrome",
     "test": "node test-cli.js",
     "test:cli": "node test-cli.js"
   },

@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { grabCookie, showConfig } from './index.js';
+import { startChrome, checkChromeStatus, ChromeManager } from './chrome-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,10 +40,28 @@ program
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-q, --quiet', 'Suppress info messages')
   .option('--no-clipboard', 'Don\'t copy cookie value to clipboard')
+  .option('--auto-start-chrome', 'Automatically start Chrome if not running')
+  .option('--chrome-port <port>', 'Chrome debugging port', '9222')
+  .option('--chrome-user-data-dir <path>', 'Chrome user data directory')
   .action(async (options) => {
     try {
+      let cdpUrl = options.cdpUrl;
+      
+      // Auto-start Chrome if requested or if CDP connection fails
+      if (options.autoStartChrome || !(await checkChromeStatus(parseInt(options.chromePort)))) {
+        console.log(chalk.yellow('[info] Chrome not running with CDP. Starting Chrome automatically...'));
+        
+        const chromeOptions = {
+          port: parseInt(options.chromePort),
+          userDataDir: options.chromeUserDataDir,
+          verbose: options.verbose
+        };
+        
+        cdpUrl = await startChrome(chromeOptions);
+      }
+
       const config = {
-        endpointURL: options.cdpUrl,
+        endpointURL: cdpUrl,
         startUrl: options.startUrl,
         expectUrlIncludes: options.expectUrl,
         cookieName: options.cookieName,
@@ -65,6 +84,41 @@ program
       };
 
       await grabCookie(config);
+    } catch (error) {
+      console.error(chalk.red('[error]'), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('start-chrome')
+  .description('Start Chrome with CDP enabled')
+  .option('-p, --port <port>', 'Chrome debugging port', '9222')
+  .option('--user-data-dir <path>', 'Chrome user data directory')
+  .option('-v, --verbose', 'Enable verbose logging')
+  .option('--check-only', 'Only check if Chrome is running, don\'t start it')
+  .action(async (options) => {
+    try {
+      if (options.checkOnly) {
+        const isRunning = await checkChromeStatus(parseInt(options.port));
+        if (isRunning) {
+          console.log(chalk.green('✓ Chrome is running with CDP enabled on port'), options.port);
+        } else {
+          console.log(chalk.yellow('✗ Chrome is not running with CDP on port'), options.port);
+        }
+        return;
+      }
+
+      const chromeOptions = {
+        port: parseInt(options.port),
+        userDataDir: options.userDataDir,
+        verbose: options.verbose
+      };
+
+      const cdpUrl = await startChrome(chromeOptions);
+      console.log(chalk.green('✓ Chrome started successfully!'));
+      console.log(chalk.blue('CDP URL:'), cdpUrl);
+      console.log(chalk.gray('You can now use: cookie-copy grab'));
     } catch (error) {
       console.error(chalk.red('[error]'), error.message);
       process.exit(1);
