@@ -148,12 +148,7 @@ async function finalLogin(page, config) {
 
 export async function grabCookie(customConfig = {}) {
   // Merge environment config with custom config
-  const envConfig = getConfigFromEnv();
-  console.log(envConfig);
-  const config = { ...DEFAULT_CONFIG, ...envConfig, ...customConfig };
-  
-  // Set global config for logging functions
-  global.CFG = config;
+  const config = getConfigFromEnv();
   console.log(config);
   
   logVerbose('Configuration:', JSON.stringify(config, null, 2));
