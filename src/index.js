@@ -6,16 +6,13 @@ import chalk from 'chalk';
 // Default configuration
 const DEFAULT_CONFIG = {
   endpointURL: 'http://localhost:9222',
-  startUrl: 'https://admin.example.com/login',
+  startUrl: 'https://admin-me.sensehq.com/admin/login',
   expectUrlIncludes: '/dashboard',
   cookieName: 'sosense',
-  pickTabUrlIncludes: '',
-  pickTabTitleIncludes: '',
   agency: 'multientity',
-  project: undefined,
-  customSelectOpen: undefined,
-  customSelectOption: undefined,
-  loginUlSelector: undefined,
+  customSelectOpen: '#wrapper > nav > div.top-nav-content > ul:nth-child(3) > div > div > button > span.filter-option.pull-left',
+  customSelectOption: '#wrapper > nav > div.top-nav-content > ul:nth-child(3) > div > div > div > ul > li:nth-child(712)',
+  loginUlSelector: '#side-menu > li:nth-child(20) > a',
   loginAnchorSelector: '#side-menu > li.active > ul > li:nth-child(3) > a',
   submitButton: 'button[type="submit"], button[data-testid="continue"], [data-action="login"]',
   timeouts: {
@@ -27,6 +24,7 @@ const DEFAULT_CONFIG = {
   copyToClipboard: true
 };
 
+
 // Merge environment variables with defaults
 function getConfigFromEnv() {
   return {
@@ -34,10 +32,7 @@ function getConfigFromEnv() {
     startUrl: process.env.START_URL || DEFAULT_CONFIG.startUrl,
     expectUrlIncludes: process.env.EXPECT_URL_INCLUDES || DEFAULT_CONFIG.expectUrlIncludes,
     cookieName: process.env.COOKIE_NAME || DEFAULT_CONFIG.cookieName,
-    pickTabUrlIncludes: process.env.PICK_TAB_URL_INCLUDES || DEFAULT_CONFIG.pickTabUrlIncludes,
-    pickTabTitleIncludes: process.env.PICK_TAB_TITLE_INCLUDES || DEFAULT_CONFIG.pickTabTitleIncludes,
     agency: process.env.AGENCY || DEFAULT_CONFIG.agency,
-    project: process.env.PROJECT || DEFAULT_CONFIG.project,
     customSelectOpen: process.env.CUSTOM_SELECT_OPEN_SELECTOR || DEFAULT_CONFIG.customSelectOpen,
     customSelectOption: process.env.CUSTOM_SELECT_OPTION_SELECTOR || DEFAULT_CONFIG.customSelectOption,
     loginUlSelector: process.env.LOGIN_UL_SELECTOR || DEFAULT_CONFIG.loginUlSelector,
@@ -154,10 +149,12 @@ async function finalLogin(page, config) {
 export async function grabCookie(customConfig = {}) {
   // Merge environment config with custom config
   const envConfig = getConfigFromEnv();
+  console.log(envConfig);
   const config = { ...DEFAULT_CONFIG, ...envConfig, ...customConfig };
   
   // Set global config for logging functions
   global.CFG = config;
+  console.log(config);
   
   logVerbose('Configuration:', JSON.stringify(config, null, 2));
 

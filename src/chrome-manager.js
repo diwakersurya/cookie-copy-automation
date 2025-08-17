@@ -91,7 +91,9 @@ export class ChromeManager {
     }
 
     const args = [
-      `--remote-debugging-port=${this.port}`
+      `--remote-debugging-port=${this.port}`,
+      '--no-first-run',
+      '--no-default-browser-check',
     ];
 
     // Add user data directory - this is required for CDP to work
