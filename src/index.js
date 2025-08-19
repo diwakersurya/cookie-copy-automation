@@ -84,13 +84,17 @@ async function ensurePage(browser, config) {
 }
 
 async function safeMultiSelect(page, dropdownSelector, optionSelectors = []) {
-  if (!dropdownSelector || !Array.isArray(optionSelectors) || optionSelectors.length === 0) return;
+  // ensure we have a dropdown and at least one valid option selector
+  if (!dropdownSelector || !Array.isArray(optionSelectors)) return;
+  const validOptions = optionSelectors.filter(Boolean);
+  if (validOptions.length === 0) return;
+
   const dropdown = await page.$(dropdownSelector);
   if (!dropdown) { log('skip multi-select (dropdown not found):', dropdownSelector); return; }
   await dropdown.click();
   log('opened dropdown', dropdownSelector);
 
-  for (const optSelector of optionSelectors) {
+  for (const optSelector of validOptions) {
     const option = await page.$(optSelector);
     if (option) {
       await option.click();
@@ -134,14 +138,17 @@ async function selectAgency(page, config) {
 
 async function clickLoginAnchor(page, config) {
   await safeClick(page, config.loginUlSelector);
-  // Wait for the login anchor to be visible before clicking
-  await page.waitForSelector(config.loginAnchorSelector, { state: 'visible', timeout: config.timeouts.idle });
-  // Click the login anchor
-  log('Clicking login anchor:', config.loginAnchorSelector);
+
   if (!config.loginAnchorSelector) {
     log('No login anchor selector provided, skipping click.');
     return;
   }
+
+  // Wait for the login anchor to be visible before clicking
+  await page.waitForSelector(config.loginAnchorSelector, { state: 'visible', timeout: config.timeouts.idle });
+
+  // Click the login anchor
+  log('Clicking login anchor:', config.loginAnchorSelector);
   return await safeClick(page, config.loginAnchorSelector);
 }
 
