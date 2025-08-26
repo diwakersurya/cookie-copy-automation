@@ -1,0 +1,35 @@
+{
+  "name": "@cookie-copy/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for cookie-copy packages",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Shared package does not require build step'",
+    "dev": "echo 'Shared package does not require dev step'",
+    "test": "echo 'Shared package does not have tests yet'",
+    "clean": "echo 'Shared package does not require clean step'"
+  },
+  "exports": {
+    "./config.js": "./src/config.js",
+    "./selectors.js": "./src/selectors.js",
+    "./utils.js": "./src/utils.js",
+    ".": "./src/index.js"
+  },
+  "keywords": [
+    "cookie",
+    "shared",
+    "utilities",
+    "configuration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cookie-copy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/cookie-copy/issues"
+  },
+  "homepage": "https://github.com/yourusername/cookie-copy#readme"
+}

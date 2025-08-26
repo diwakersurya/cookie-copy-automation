@@ -2,70 +2,42 @@ import 'dotenv/config';
 import { chromium } from 'playwright';
 import clipboard from 'clipboardy';
 import chalk from 'chalk';
+import { DEFAULT_CONFIG, getConfigFromEnv, getAgencyFromUrl } from '@cookie-copy/shared/config.js';
+import { SELECTORS, safeClick, safeMultiSelect } from '@cookie-copy/shared/selectors.js';
+import { createLogger, formatCookieData, findCookieByName } from '@cookie-copy/shared/utils.js';
 
-// Default configuration
-const DEFAULT_CONFIG = {
-  endpointURL: 'http://localhost:9222',
-  startUrl: 'https://admin-me.sensehq.com/admin/login',
-  expectUrlIncludes: '/dashboard',
-  cookieName: 'sosense',
-  agency: 'multientity',
-  customSelectOpen: '#wrapper > nav > div.top-nav-content > ul:nth-child(3) > div > div > button > span.filter-option.pull-left',
-  customSelectOption: '#wrapper > nav > div.top-nav-content > ul:nth-child(3) > div > div > div > ul > li:nth-child(712)',
-  loginUlSelector: '#side-menu > li:nth-child(20) > a',
-  loginAnchorSelector: '#side-menu > li.active > ul > li:nth-child(3) > a',
-  submitButton: 'button[type="submit"], button[data-testid="continue"], [data-action="login"]',
-  timeouts: {
-    nav: 120_000,
-    idle: 15_000,
-  },
-  verbose: false,
-  quiet: false,
-  copyToClipboard: true
-};
+// Create logger instance
+let logger;
 
-
-// Merge environment variables with defaults
-function getConfigFromEnv() {
-  return {
-    endpointURL: process.env.CDP_URL || DEFAULT_CONFIG.endpointURL,
-    startUrl: process.env.START_URL || DEFAULT_CONFIG.startUrl,
-    expectUrlIncludes: process.env.EXPECT_URL_INCLUDES || DEFAULT_CONFIG.expectUrlIncludes,
-    cookieName: process.env.COOKIE_NAME || DEFAULT_CONFIG.cookieName,
-    agency: process.env.AGENCY || DEFAULT_CONFIG.agency,
-    customSelectOpen: process.env.CUSTOM_SELECT_OPEN_SELECTOR || DEFAULT_CONFIG.customSelectOpen,
-    customSelectOption: process.env.CUSTOM_SELECT_OPTION_SELECTOR || DEFAULT_CONFIG.customSelectOption,
-    loginUlSelector: process.env.LOGIN_UL_SELECTOR || DEFAULT_CONFIG.loginUlSelector,
-    loginAnchorSelector: process.env.LOGIN_ANCHOR_SELECTOR || DEFAULT_CONFIG.loginAnchorSelector,
-    submitButton: process.env.SUBMIT_BUTTON_SELECTOR || DEFAULT_CONFIG.submitButton,
-    timeouts: {
-      nav: parseInt(process.env.NAV_TIMEOUT) || DEFAULT_CONFIG.timeouts.nav,
-      idle: parseInt(process.env.IDLE_TIMEOUT) || DEFAULT_CONFIG.timeouts.idle,
-    },
-    verbose: process.env.VERBOSE === 'true' || DEFAULT_CONFIG.verbose,
-    quiet: process.env.QUIET === 'true' || DEFAULT_CONFIG.quiet,
-    copyToClipboard: process.env.COPY_TO_CLIPBOARD !== 'false' && DEFAULT_CONFIG.copyToClipboard
-  };
+function initializeLogger(config) {
+  logger = createLogger(chalk.blue('[info]'), {
+    verbose: config.verbose,
+    quiet: config.quiet
+  });
 }
 
 function log(...args) {
-  if (!global.CFG?.quiet) {
-    console.error(chalk.blue('[info]'), ...args);
+  if (logger) {
+    logger.log(...args);
   }
 }
 
 function logVerbose(...args) {
-  if (global.CFG?.verbose) {
-    console.error(chalk.gray('[debug]'), ...args);
+  if (logger) {
+    logger.logVerbose(...args);
   }
 }
 
 function logError(...args) {
-  console.error(chalk.red('[error]'), ...args);
+  if (logger) {
+    logger.logError(...args);
+  }
 }
 
 function logSuccess(...args) {
-  console.log(chalk.green('[success]'), ...args);
+  if (logger) {
+    logger.logSuccess(...args);
+  }
 }
 
 async function ensurePage(browser, config) {
@@ -78,33 +50,7 @@ async function ensurePage(browser, config) {
   return page;
 }
 
-async function safeMultiSelect(page, dropdownSelector, optionSelectors = []) {
-  if (!dropdownSelector || !Array.isArray(optionSelectors) || optionSelectors.length === 0) return;
-  const dropdown = await page.$(dropdownSelector);
-  if (!dropdown) { log('skip multi-select (dropdown not found):', dropdownSelector); return; }
-  await dropdown.click();
-  log('opened dropdown', dropdownSelector);
 
-  for (const optSelector of optionSelectors) {
-    const option = await page.$(optSelector);
-    if (option) {
-      await option.click();
-      log('selected option', optSelector);
-    } else {
-      log('option not found:', optSelector);
-    }
-    // Optionally wait between selections if needed
-    await page.waitForTimeout(100);
-  }
-}
-
-async function safeClick(page, selector) {
-  if (!selector) return;
-  const el = await page.$(selector);
-  if (!el) { log('skip click (not found):', selector); return; }
-   await el.click({ force: true });
-  log('clicked', selector);
-}
 
 async function doInteractions(page, config) {
   await selectAgency(page, config);
@@ -150,8 +96,10 @@ async function finalLogin(page, config) {
 
 export async function grabCookie(customConfig = {}) {
   // Merge environment config with custom config
-  const config = getConfigFromEnv();
-  console.log(config);
+  const config = { ...getConfigFromEnv(), ...customConfig };
+  
+  // Initialize logger
+  initializeLogger(config);
   
   logVerbose('Configuration:', JSON.stringify(config, null, 2));
 
@@ -169,22 +117,13 @@ export async function grabCookie(customConfig = {}) {
     // Extract the cookie from the shared browser context
     const ctx = page.context();
     const cookies = await ctx.cookies();
-    const match = cookies.find(c => c.name === config.cookieName);
+    const match = findCookieByName(cookies, config.cookieName);
     if (!match) {
       const names = [...new Set(cookies.map(c => c.name))];
       console.log(`Cookie "${config.cookieName}" not found. Known cookies (first 50): ${names.slice(0,50).join(', ')}`);
       process.exitCode = 2;
     } else {
-      const cookieData = {
-        name: match.name,
-        value: match.value,
-        domain: match.domain,
-        path: match.path,
-        expires: match.expires,
-        httpOnly: match.httpOnly,
-        secure: match.secure,
-        sameSite: match.sameSite
-      };
+      const cookieData = formatCookieData(match);
       
       console.log(JSON.stringify(cookieData, null, 2));
       

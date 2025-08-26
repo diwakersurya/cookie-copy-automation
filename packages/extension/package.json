@@ -1,0 +1,34 @@
+{
+  "name": "@cookie-copy/extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for automated cookie grabbing",
+  "type": "module",
+  "scripts": {
+    "build": "node ../../tools/build-extension.js",
+    "dev": "node ../../tools/build-extension.js --watch",
+    "clean": "rm -rf dist",
+    "zip": "npm run build && cd dist && zip -r ../cookie-copy-extension.zip ."
+  },
+  "dependencies": {
+    "@cookie-copy/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^11.0.0"
+  },
+  "keywords": [
+    "chrome-extension",
+    "cookie",
+    "automation",
+    "browser-extension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cookie-copy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/cookie-copy/issues"
+  },
+  "homepage": "https://github.com/yourusername/cookie-copy#readme"
+}

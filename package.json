@@ -1,44 +1,42 @@
 {
   "name": "cookie-copy",
   "version": "1.0.0",
-  "description": "CLI tool to extract cookies from an already running Chrome instance using CDP",
-  "main": "src/index.js",
-  "bin": {
-    "cookie-copy": "src/cli.js"
+  "description": "Monorepo for Cookie Copy CLI and Browser Extension",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean",
+    "ext:build": "node tools/build-extension.js",
+    "ext:dev": "node tools/build-extension.js --watch",
+    "cli:dev": "pnpm --filter @cookie-copy/cli dev",
+    "cli:test": "pnpm --filter @cookie-copy/cli test",
+    "ext:create-icons": "node tools/create-icons.js"
   },
-  "type": "module",
   "keywords": [
     "cli",
     "cookie",
     "chrome",
     "cdp",
     "playwright",
-    "automation"
+    "automation",
+    "browser-extension",
+    "monorepo"
   ],
   "author": "",
   "license": "MIT",
-  "scripts": {
-    "prepare": "node -e \"console.log('No browsers to install for CDP attach')\"",
-    "start": "node src/cli.js",
-    "grab": "node src/cli.js grab",
-    "config": "node src/cli.js config",
-    "start-chrome": "node src/cli.js start-chrome",
-    "test": "node test-cli.js",
-    "test:cli": "node test-cli.js",
-    "ext:clean": "rm -rf dist-extension",
-    "ext:build": "mkdir -p dist-extension && rsync -a --exclude 'node_modules' --exclude '.DS_Store' extension/ dist-extension/",
-    "ext:zip": "npm run ext:build && cd dist-extension && zip -r ../sense-cookie-extension.zip .",
-    "ext:dev": "npm run ext:build"
-  },
-  "dependencies": {
-    "clipboardy": "^4.0.0",
-    "dotenv": "^16.4.5",
-    "playwright": "^1.47.2",
-    "commander": "^12.0.0",
-    "chalk": "^5.3.0"
-  },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
   },
   "repository": {
     "type": "git",
