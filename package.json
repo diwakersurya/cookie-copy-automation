@@ -24,7 +24,11 @@
     "config": "node src/cli.js config",
     "start-chrome": "node src/cli.js start-chrome",
     "test": "node test-cli.js",
-    "test:cli": "node test-cli.js"
+    "test:cli": "node test-cli.js",
+    "ext:clean": "rm -rf dist-extension",
+    "ext:build": "mkdir -p dist-extension && rsync -a --exclude 'node_modules' --exclude '.DS_Store' extension/ dist-extension/",
+    "ext:zip": "npm run ext:build && cd dist-extension && zip -r ../sense-cookie-extension.zip .",
+    "ext:dev": "npm run ext:build"
   },
   "dependencies": {
     "clipboardy": "^4.0.0",

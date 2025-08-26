@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Sense Cookie Grabber",
+  "version": "0.1.0",
+  "description": "Auto-run interactions and copy a configurable cookie value for Sense agencies.",
+  "permissions": [
+    "cookies",
+    "storage",
+    "scripting",
+    "declarativeContent",
+    "notifications",
+    "offscreen",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "*://*.sensehq.com/*",
+    "*://*.dserver.com/*"
+  ],
+  "action": {
+    "default_title": "Sense Cookie Grabber",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.sensehq.com/*",
+        "*://*.dserver.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

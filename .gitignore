@@ -93,3 +93,5 @@ Thumbs.db
 
 # Chrome debug directories
 .chrome-debug/
+
+dist-extension/

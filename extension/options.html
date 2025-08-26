@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sense Cookie Options</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; max-width: 640px; }
+    label { display: block; margin: 8px 0 4px; }
+    input[type="text"] { width: 100%; padding: 6px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row { margin-bottom: 12px; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <h3>Settings</h3>
+  <div class="row">
+    <label><input type="checkbox" id="autoRun"> Auto-run on matching domains</label>
+  </div>
+  <div class="row">
+    <label>Cookie name</label>
+    <input id="cookieName" type="text" placeholder="sosense" />
+  </div>
+  <div class="grid">
+    <div>
+      <label>Idle timeout (ms)</label>
+      <input id="idle" type="text" placeholder="15000" />
+    </div>
+    <div>
+      <label>Expected URL includes (optional)</label>
+      <input id="expect" type="text" placeholder="/dashboard" />
+    </div>
+  </div>
+  <h4>Selectors</h4>
+  <div class="row"><label>customSelectOpen</label><input id="customSelectOpen" type="text"></div>
+  <div class="row"><label>customSelectOption</label><input id="customSelectOption" type="text"></div>
+  <div class="row"><label>loginUlSelector</label><input id="loginUlSelector" type="text"></div>
+  <div class="row"><label>loginAnchorSelector</label><input id="loginAnchorSelector" type="text"></div>
+  <div class="row"><label>submitButton</label><input id="submitButton" type="text"></div>
+
+  <h4>Extra stage origins</h4>
+  <div class="row">
+    <input id="extraOrigins" type="text" placeholder="https://stage.example.com/*, https://foo.bar/*" />
+    <small>Comma-separated. You’ll be prompted for permission on first visit.</small>
+  </div>
+
+  <div class="row">
+    <button id="save">Save</button>
+    <span id="status"></span>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
+
+
