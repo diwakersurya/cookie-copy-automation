@@ -13,6 +13,45 @@ const DEFAULTS = {
   extraOrigins: []
 };
 
+const AGENCY_URL = 'https://multientity.dserver.com/';
+const AGENCY_HOST = 'multientity.dserver.com';
+const AGENCY_COOKIE_NAME = 'sosense';
+const MULTIENTITY_SENSE_HOST = 'multientity.sensehq.com';
+
+function debugNotify(title, message) {
+  try {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title,
+      message: String(message || '').slice(0, 250),
+      priority: 0
+    });
+  } catch {
+    // ignore notification failures
+  }
+}
+
+function cookiesSet(details) {
+  return new Promise((resolve, reject) => {
+    chrome.cookies.set(details, (cookie) => {
+      const err = chrome.runtime.lastError;
+      if (err) return reject(new Error(err.message));
+      resolve(cookie);
+    });
+  });
+}
+
+function tabsCreate(createProperties) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.create(createProperties, (tab) => {
+      const err = chrome.runtime.lastError;
+      if (err) return reject(new Error(err.message));
+      resolve(tab);
+    });
+  });
+}
+
 async function getSettings() {
   const data = await chrome.storage.sync.get({ settings: DEFAULTS });
   return { ...DEFAULTS, ...(data.settings || {}) };
@@ -35,11 +74,50 @@ async function ensureOriginPermission(url) {
   return chrome.permissions.request({ origins: [origin] });
 }
 
+async function pushCookieToAgency(cookieValue) {
+  if (!cookieValue) return { ok: false, reason: 'empty' };
+
+  // De-dupe to avoid opening lots of tabs on repeated onUpdated events.
+  const { lastAgencyPush } = await chrome.storage.local.get({ lastAgencyPush: null });
+  if (
+    lastAgencyPush?.value === cookieValue &&
+    typeof lastAgencyPush?.at === 'number' &&
+    Date.now() - lastAgencyPush.at < 5 * 60 * 1000
+  ) {
+    debugNotify('Agency push skipped', `Already pushed recently to ${AGENCY_HOST}.`);
+    return { ok: true, skipped: true };
+  }
+
+  // Set the cookie on agency.dserver.com before opening the tab,
+  // so the first page load has it available.
+  await cookiesSet({
+    url: AGENCY_URL,
+    name: AGENCY_COOKIE_NAME,
+    value: cookieValue,
+    path: '/',
+    secure: true
+  });
+
+  await chrome.storage.local.set({
+    lastAgencyPush: { value: cookieValue, at: Date.now() }
+  });
+
+  const tab = await tabsCreate({ url: AGENCY_URL, active: true });
+  debugNotify('Agency tab opened', `Opened ${AGENCY_URL}\nTab ID: ${tab?.id ?? 'unknown'}`);
+  return { ok: true, skipped: false };
+}
+
 async function runFlow(tabId, url) {
   const settings = await getSettings();
   if (!settings.autoRun) return;
 
-  const host = new URL(url).hostname;
+  const urlObj = new URL(url);
+
+  // Important: avoid looping on our own agency tab.
+  // agency.dserver.com is inside *.dserver.com so it would otherwise re-trigger runFlow.
+  if (urlObj.hostname === AGENCY_HOST) return;
+
+  const host = urlObj.hostname;
   const isDefault =
     host.endsWith('.sensehq.com') ||
     host.endsWith('.dserver.com');
@@ -59,13 +137,13 @@ async function runFlow(tabId, url) {
   if (injectedResult?.didSelectAgency) return;
 
   await new Promise(r => setTimeout(r, 1000));
-  const cookie = await chrome.cookies.get({ url, name: (await getSettings()).cookieName });
+  const cookie = await chrome.cookies.get({ url, name: settings.cookieName });
 
   const agency = getAgencyFromUrl(url);
   const payload = {
     agency,
     url,
-    cookieName: (await getSettings()).cookieName,
+    cookieName: settings.cookieName,
     cookie
   };
 
@@ -103,9 +181,25 @@ async function runFlow(tabId, url) {
       }
       await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'offscreen-copy', text: cookie.value }, (res) => {
+          const err = chrome.runtime.lastError;
+          if (err) return resolve({ ok: false, error: err.message });
           resolve(res);
         });
       });
+
+      // Only push to the agency domain once multientity.sensehq.com is open.
+      // (We don't require clipboard copy success for this.)
+      if (host === MULTIENTITY_SENSE_HOST) {
+        debugNotify(
+          'Agency push: starting',
+          `Host matched (${MULTIENTITY_SENSE_HOST}).\nSetting "${AGENCY_COOKIE_NAME}" on ${AGENCY_HOST} and opening tab.`
+        );
+        try {
+          await pushCookieToAgency(cookie.value);
+        } catch (e) {
+          debugNotify('Agency push failed', e?.message || String(e));
+        }
+      }
     } catch (e) {
       // ignore clipboard errors
     }
