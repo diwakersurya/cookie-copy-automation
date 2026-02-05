@@ -10,6 +10,7 @@
     "zip": "npm run build && cd dist && zip -r ../cookie-copy-extension.zip ."
   },
   "dependencies": {
+    "@testing-library/dom": "^10.4.1",
     "@cookie-copy/shared": "workspace:*"
   },
   "devDependencies": {

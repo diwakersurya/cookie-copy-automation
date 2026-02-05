@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Monorepo for Cookie Copy CLI and Browser Extension",
   "private": true,
+  "type": "module",
   "workspaces": [
     "packages/*"
   ],
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "esbuild": "^0.25.0",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0"
   },
