@@ -4,6 +4,22 @@ async function getCurrentCookie() {
   });
 }
 
+const DEFAULTS = {
+  autoRun: true
+};
+
+async function getSettings() {
+  const { settings = {} } = await chrome.storage.sync.get({ settings: {} });
+  return { ...DEFAULTS, ...(settings || {}) };
+}
+
+async function patchSettings(patch) {
+  const { settings = {} } = await chrome.storage.sync.get({ settings: {} });
+  await chrome.storage.sync.set({
+    settings: { ...DEFAULTS, ...(settings || {}), ...(patch || {}) }
+  });
+}
+
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -20,14 +36,45 @@ async function copy(text) {
 }
 
 (async () => {
-  const res = await getCurrentCookie();
   const agencyEl = document.getElementById('agency');
   const cnameEl = document.getElementById('cname');
   const cvalEl = document.getElementById('cval');
-  const btn = document.getElementById('copy');
+  const copyBtn = document.getElementById('copy');
 
+  const autoRunEl = document.getElementById('autoRun');
+  const openOptionsBtn = document.getElementById('openOptions');
+  const settingsStatusEl = document.getElementById('settingsStatus');
+
+  // Settings (works even if the current tab isn't a Sense page)
+  try {
+    if (autoRunEl) {
+      const settings = await getSettings();
+      autoRunEl.checked = !!settings.autoRun;
+      autoRunEl.addEventListener('change', async () => {
+        await patchSettings({ autoRun: autoRunEl.checked });
+        if (settingsStatusEl) {
+          settingsStatusEl.textContent = 'Saved';
+          setTimeout(() => (settingsStatusEl.textContent = ''), 900);
+        }
+      });
+    }
+
+    if (openOptionsBtn) {
+      openOptionsBtn.addEventListener('click', () => {
+        chrome.runtime.openOptionsPage();
+      });
+    }
+  } catch {
+    // ignore settings errors in popup
+  }
+
+  // Cookie view + copy
+  const res = await getCurrentCookie();
   if (res?.error) {
+    agencyEl.textContent = '-';
     cnameEl.textContent = res.error;
+    cvalEl.textContent = '-';
+    copyBtn.disabled = true;
     return;
   }
 
@@ -35,11 +82,12 @@ async function copy(text) {
   cnameEl.textContent = res.cookieName || '-';
   cvalEl.textContent = res.cookie?.value || '(not found)';
 
-  btn.addEventListener('click', async () => {
+  copyBtn.disabled = !res?.cookie?.value;
+  copyBtn.addEventListener('click', async () => {
     if (!res?.cookie?.value) return;
     const ok = await copy(res.cookie.value);
-    btn.textContent = ok ? 'Copied!' : 'Copy failed';
-    setTimeout(() => (btn.textContent = 'Copy value'), 1200);
+    copyBtn.textContent = ok ? 'Copied!' : 'Copy failed';
+    setTimeout(() => (copyBtn.textContent = 'Copy value'), 1200);
   });
 })();
 

@@ -9,6 +9,8 @@
     code { word-break: break-all; }
     button { padding: 6px 10px; }
     .muted { color: #666; font-size: 12px; }
+    .divider { height: 1px; background: #eee; margin: 10px 0; }
+    label { user-select: none; }
   </style>
   </head>
 <body>
@@ -19,6 +21,17 @@
     <button id="copy">Copy value</button>
   </div>
   <div class="row muted">Recent per-agency values are stored locally.</div>
+
+  <div class="divider"></div>
+
+  <div class="row">
+    <label><input type="checkbox" id="autoRun"> Auto-run admin automation</label>
+    <div class="muted">Turn this off when you want to use the admin panel normally.</div>
+    <div class="muted" id="settingsStatus"></div>
+  </div>
+  <div class="row">
+    <button id="openOptions" type="button">Advanced settings…</button>
+  </div>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

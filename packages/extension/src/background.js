@@ -48,7 +48,7 @@ async function runFlow(tabId, url) {
     if (!ok) return;
   }
 
-  await chrome.scripting.executeScript({
+  const [{ result: injectedResult } = { result: null }] = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
     func: async (settings) => {
@@ -64,11 +64,29 @@ async function runFlow(tabId, url) {
       };
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+      const isPlaceholderLabel = (label) => {
+        const t = (label || '').trim();
+        if (!t) return true;
+        // Common placeholders for bootstrap-select / similar controls
+        if (/^(select|choose)\b/i.test(t)) return true;
+        if (/^all\b/i.test(t)) return true;
+        return false;
+      };
+
+      // Phase 1: only select an agency if none is selected yet.
+      // Selecting an agency reloads the page; if we trigger it, stop here and let the next load continue.
       if (sel.customSelectOpen) {
-        click(sel.customSelectOpen);
-        await sleep(100);
-        if (sel.customSelectOption) click(sel.customSelectOption);
-        await sleep(100);
+        const labelEl = q(sel.customSelectOpen);
+        const currentLabel = (labelEl?.textContent || '').trim();
+        const hasAgencySelected = !isPlaceholderLabel(currentLabel);
+
+        if (!hasAgencySelected) {
+          click(sel.customSelectOpen);
+          await sleep(100);
+          if (sel.customSelectOption) click(sel.customSelectOption);
+          await sleep(100);
+          return { ok: true, didSelectAgency: true, currentLabel };
+        }
       }
 
       if (sel.loginUlSelector) click(sel.loginUlSelector);
@@ -85,10 +103,12 @@ async function runFlow(tabId, url) {
       }
 
       await sleep(1500);
-      return { ok: true, url: location.href };
+      return { ok: true, url: location.href, didSelectAgency: false };
     },
     args: [settings]
   });
+
+  if (injectedResult?.didSelectAgency) return;
 
   await new Promise(r => setTimeout(r, 1000));
   const cookie = await chrome.cookies.get({ url, name: (await getSettings()).cookieName });
